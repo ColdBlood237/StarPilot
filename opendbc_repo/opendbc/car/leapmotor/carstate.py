@@ -29,6 +29,7 @@ class CarState(CarStateBase):
     # the EPS's own effort as it shows up in the driver-torque reading, which lags it (see EPS_TORQUE_LAG)
     self.eps_torque_lagged = FirstOrderFilter(0., CarControllerParams.EPS_TORQUE_LAG, DT_CTRL)
     self.powertrain_state: dict | None = None
+    self.stopped_frames = 0
     self.dashboard_limit = LimitTracker()
     self.stalk_cancel = False
 
@@ -116,7 +117,10 @@ class CarState(CarStateBase):
     ret.cruiseState.available = ret.cruiseState.enabled or int(cp_cam.vl['ADAS_LKA']['ACC_STATE']) in (2, 3)
     ret.cruiseState.speed = cp_cam.vl['ADAS_LKA']['ACC_SET_SPEED'] * CV.KPH_TO_MS
     ret.cruiseState.speedCluster = ret.cruiseState.speed
-    ret.cruiseState.standstill = ret.cruiseState.enabled and ret.standstill
+    # the standstill hold, after which openpilot waits for the driver (see CarControllerParams.STANDSTILL_RESUME_TIME)
+    self.stopped_frames = self.stopped_frames + 1 if ret.standstill and not ret.gasPressed else 0
+    ret.cruiseState.standstill = (ret.cruiseState.enabled and
+                                  self.stopped_frames * DT_CTRL >= CarControllerParams.STANDSTILL_RESUME_TIME)
     # the camera's forward collision warning, shown by openpilot too
     ret.stockFcw = bool(cp_cam.vl['ROAD_SIGNS']['FCW'])
     # the camera's posted speed limit, as the cluster shows it; offered to the speed limit controller as the dashboard

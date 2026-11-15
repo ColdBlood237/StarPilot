@@ -367,6 +367,33 @@ class TestLeapmotorCan(unittest.TestCase):
       self.assertLess(abs(ret.steeringTorqueEps), 100)
       self.assertFalse(CS.driver_override)
 
+  def test_standstill_hold_after_short_stop(self):
+    # openpilot may pull away by itself for STANDSTILL_RESUME_TIME after stopping, like stock after a short stop, then
+    # waits for the accelerator; pressing it starts the time again
+    from opendbc.car import DT_CTRL
+    from opendbc.car.leapmotor.carstate import CarState
+    from opendbc.car.leapmotor.interface import CarInterface
+    CP = CarInterface.get_non_essential_params("LEAPMOTOR_B10")
+    CS = CarState(CP)
+    parsers = CS.get_can_parsers(CP)
+    packer = CANPacker("leapmotor_b10")
+    hold_frames = round(CarControllerParams.STANDSTILL_RESUME_TIME / DT_CTRL)
+
+    def frame(i, gas=0.):
+      msgs = [packer.make_can_msg("POWERTRAIN_STATE", 0, {"ASSIST_ENGAGED": 1, "COUNTER": i % 16}),
+              packer.make_can_msg("VEHICLE_STATE", 0, {"ACCEL_PEDAL": gas, "COUNTER": i % 16}),
+              packer.make_can_msg("WHEEL_SPEEDS", 0, {"COUNTER": i % 16})]
+      parsers[Bus.pt].update([(int((i + 1) * 1e7), [(addr, dat, bus) for addr, dat, bus in msgs])])
+      parsers[Bus.cam].update([(int((i + 1) * 1e7), [])])
+      return CS.update(parsers)
+
+    held = [frame(i).cruiseState.standstill for i in range(hold_frames + 10)]
+    self.assertTrue(frame(0).cruiseState.enabled)
+    self.assertFalse(any(held[:hold_frames - 1]))
+    self.assertTrue(all(held[hold_frames:]))
+    self.assertFalse(frame(0, gas=10.).cruiseState.standstill)
+    self.assertFalse(frame(1).cruiseState.standstill)
+
   def test_dashboard_speed_limit(self):
     # the camera's posted limit is offered as the dashboard source, and expires with the camera's frames
     from opendbc.car.dashboard_speed_limit import Status
@@ -397,6 +424,7 @@ class TestLeapmotorCan(unittest.TestCase):
     for i, limit in enumerate((0, 255), start=61):
       observation, _ = frame(i, limit)
       self.assertEqual(observation.status, Status.UNKNOWN)
+
 
   def test_cancel_push_is_a_cancel_button(self):
     # only the stalk pushed up (STALK_PUSH 3) is reported, as a cancel press and release; the engage pushes are not
