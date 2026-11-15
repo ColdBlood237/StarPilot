@@ -2,6 +2,7 @@ from opendbc.car import DT_CTRL, Bus, structs
 from opendbc.can.parser import CANParser
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.common.filter_simple import FirstOrderFilter
+from opendbc.car.dashboard_speed_limit import Tracker as LimitTracker, leapmotor_sign, parser_expiry
 from opendbc.car.interfaces import CarStateBase
 from opendbc.car.leapmotor.values import DBC, CarControllerParams
 
@@ -21,6 +22,7 @@ class CarState(CarStateBase):
     self.eps_torque_lagged = FirstOrderFilter(0., CarControllerParams.EPS_TORQUE_LAG, DT_CTRL)
     self.powertrain_state: dict | None = None
     self.stopped_frames = 0
+    self.dashboard_limit = LimitTracker()
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
@@ -98,6 +100,11 @@ class CarState(CarStateBase):
                                   self.stopped_frames * DT_CTRL >= CarControllerParams.STANDSTILL_RESUME_TIME)
     # the camera's forward collision warning, shown by openpilot too
     ret.stockFcw = bool(cp_cam.vl['ROAD_SIGNS']['FCW'])
+    # the camera's posted speed limit, as the cluster shows it; offered to the speed limit controller as the dashboard
+    timestamp, expiry = parser_expiry(cp_cam, 'ROAD_SIGNS', 'SPEED_LIMIT')
+    if timestamp > self.dashboard_limit.observation.observed_ns:
+      status, value_mps = leapmotor_sign(int(cp_cam.vl['ROAD_SIGNS']['SPEED_LIMIT']))
+      self.dashboard_limit.update(timestamp, status, value_mps, valid_until_ns=expiry)
     # latest camera frame, rebuilt by the controller; None until the camera's 0x83 has been received
     self.adas_lka = dict(cp_cam.vl['ADAS_LKA']) if cp_cam.ts_nanos['ADAS_LKA']['COUNTER'] > 0 else None
 
