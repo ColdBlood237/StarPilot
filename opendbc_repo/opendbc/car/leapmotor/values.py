@@ -64,6 +64,12 @@ class CarControllerParams:
   # When the camera asks for this much braking or more, openpilot never asks for less: the camera's emergency braking
   # path is not yet known and may use this field. Stock ACC went below it on 0.02% of engaged frames.
   STOCK_BRAKE_PASSTHROUGH = -2.0  # m/s^2
+  # After a stop the stock ACC holds the car and asks the driver to press the accelerator, except right after a short
+  # stop: of 15 stock stops on 869 segments, the one that ended without the driver pulled away by itself after 2.1 s
+  # (the camera asked for +1.8 from 1.6 s); the 6-18 s ones all waited for the accelerator. So openpilot reports the
+  # cruise standstill hold, and waits for the accelerator, only once the car has stood still this long. Pressing the
+  # accelerator starts it again, like the stock prompt.
+  STANDSTILL_RESUME_TIME = 2.0  # s
 
 
 class LeapmotorSafetyFlags(IntFlag):

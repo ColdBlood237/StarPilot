@@ -57,6 +57,7 @@ class CarState(CarStateBase):
     self.eps_torque_lagged = FirstOrderFilter(0., CarControllerParams.EPS_TORQUE_LAG, DT_CTRL)
     self.powertrain_state: dict | None = None
     self.set_speed = SetSpeed()
+    self.stopped_frames = 0
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
@@ -132,7 +133,10 @@ class CarState(CarStateBase):
       ret.cruiseState.speed = self.set_speed.update(ret.cruiseState.enabled, cp_cam.vl['ADAS_LKA']['ACC_SET_SPEED'],
                                                     int(cp.vl['CLUSTER']['ACC_SPEED_KNOB'])) * CV.KPH_TO_MS
     ret.cruiseState.speedCluster = ret.cruiseState.speed
-    ret.cruiseState.standstill = ret.cruiseState.enabled and ret.standstill
+    # the standstill hold, after which openpilot waits for the driver (see CarControllerParams.STANDSTILL_RESUME_TIME)
+    self.stopped_frames = self.stopped_frames + 1 if ret.standstill and not ret.gasPressed else 0
+    ret.cruiseState.standstill = (ret.cruiseState.enabled and
+                                  self.stopped_frames * DT_CTRL >= CarControllerParams.STANDSTILL_RESUME_TIME)
     # the camera's forward collision warning, shown by openpilot too
     ret.stockFcw = bool(cp_cam.vl['ROAD_SIGNS']['FCW'])
     # latest camera frame, rebuilt by the controller; None until the camera's 0x83 has been received
