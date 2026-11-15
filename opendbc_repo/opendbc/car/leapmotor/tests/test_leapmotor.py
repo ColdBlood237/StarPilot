@@ -267,42 +267,6 @@ class TestLeapmotorCan(unittest.TestCase):
     CC.longActive = True
     self.assertIsNone(CarController(DBC_NAMES, CP).long_accel(CC, {"ACC_STATE": 3, "ACC_ACCEL_REQ": -1.0}))
 
-  def test_set_speed_below_stock_minimum(self):
-    from opendbc.car.leapmotor.carstate import SetSpeed
-    ss = SetSpeed()
-    knob = 2000
-
-    def step(engaged, stock, detents=0, frames=1):
-      nonlocal knob
-      knob = (knob + 100 * detents) % 2048
-      out = ss.update(engaged, stock, knob)
-      for _ in range(frames - 1):
-        out = ss.update(engaged, stock, knob)
-      return out
-
-    self.assertEqual(step(False, 50.), 50.)  # not engaged: the car's
-    self.assertEqual(step(True, 50.), 50.)
-    self.assertEqual(step(True, 50., -1), 49.)  # a detent, then the car follows 20-30 ms later
-    self.assertEqual(step(True, 49., frames=60), 49.)
-    # one detent at a time down to the car's floor of 30, then the knob keeps going (the counter wraps at 2048)
-    for kph in range(48, 29, -1):
-      self.assertEqual(step(True, float(kph), -1, frames=3), float(kph))
-    self.assertEqual(step(True, 30., -3), 27.)
-    for _ in range(10):
-      step(True, 30., -3)
-    self.assertEqual(step(True, 30.), SetSpeed.MIN)
-    self.assertEqual(step(True, 30., 8), SetSpeed.MIN)  # a jump of the reading, not the knob
-    # back up from below: no jump to the car's value, which leaves its floor at the same time
-    for _ in range(4):
-      step(True, 30., 5)
-    self.assertEqual(step(True, 30.), 25.)
-    self.assertEqual(step(True, 31., 1, frames=60), 26.)
-    # the car changes its set speed on its own (no detent): follow it
-    self.assertEqual(step(True, 60., frames=2), 60.)
-    # re-engaging starts from the car's, even with a detent on that frame
-    self.assertEqual(step(False, 40.), 40.)
-    self.assertEqual(step(True, 40., -1), 40.)
-
   def test_take_back(self):
     from types import SimpleNamespace
     from opendbc.car import structs as car_structs

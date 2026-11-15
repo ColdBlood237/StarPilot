@@ -9,42 +9,6 @@ GearShifter = structs.CarState.GearShifter
 GEARS = {0: GearShifter.park, 1: GearShifter.reverse, 2: GearShifter.neutral, 3: GearShifter.drive}
 
 
-class SetSpeed:
-  """openpilot's own ACC set speed (km/h) with openpilot longitudinal. The stock set speed stops at 30 km/h, but the
-  knob (CLUSTER.ACC_SPEED_KNOB) keeps counting its detents, 1 km/h each, so openpilot follows the knob instead."""
-  STOCK_MIN = 30.  # km/h, the lowest stock set speed
-  MIN = 5.
-  MAX = 150.
-  RESYNC_FRAMES = 50  # the stock set speed follows a detent 20-30 ms later; any other change is the car's own
-
-  MAX_DETENTS = 5  # per 10 ms frame; more is a jump of the reading (e.g. its first frame), not the knob
-
-  def __init__(self):
-    self.knob_last: int | None = None
-    self.stock_last: float | None = None
-    self.speed: float | None = None
-    self.engaged_last = False
-    self.frames_since_knob = self.RESYNC_FRAMES
-
-  def update(self, engaged: bool, stock: float, knob: int) -> float:
-    detents = 0 if self.knob_last is None else round((((knob - self.knob_last + 1024) % 2048) - 1024) / 100)
-    detents = detents if abs(detents) <= self.MAX_DETENTS else 0
-    self.knob_last = knob
-    self.frames_since_knob = 0 if detents else self.frames_since_knob + 1
-
-    if not engaged or not self.engaged_last or self.speed is None:
-      # starts from the stock set speed at every engagement
-      self.speed = stock
-    elif detents:
-      self.speed = min(max(self.speed + detents, self.MIN), self.MAX)
-    elif stock != self.stock_last and self.frames_since_knob > self.RESYNC_FRAMES and stock > self.STOCK_MIN:
-      # changed without the knob: follow the car (not at its 30 km/h floor, which says nothing about the knob)
-      self.speed = stock
-    self.stock_last = stock
-    self.engaged_last = engaged
-    return self.speed
-
-
 class CarState(CarStateBase):
   def __init__(self, CP):
     super().__init__(CP)
@@ -56,7 +20,6 @@ class CarState(CarStateBase):
     # the EPS's own effort as it shows up in the driver-torque reading, which lags it (see EPS_TORQUE_LAG)
     self.eps_torque_lagged = FirstOrderFilter(0., CarControllerParams.EPS_TORQUE_LAG, DT_CTRL)
     self.powertrain_state: dict | None = None
-    self.set_speed = SetSpeed()
     self.stopped_frames = 0
 
   def update(self, can_parsers) -> structs.CarState:
@@ -128,10 +91,6 @@ class CarState(CarStateBase):
     # available so that an accelerator override (state 1 while engaged) does not raise wrongCarMode
     ret.cruiseState.available = ret.cruiseState.enabled or int(cp_cam.vl['ADAS_LKA']['ACC_STATE']) in (2, 3)
     ret.cruiseState.speed = cp_cam.vl['ADAS_LKA']['ACC_SET_SPEED'] * CV.KPH_TO_MS
-    if self.CP.openpilotLongitudinalControl:
-      # openpilot's own set speed, which the knob can take below the stock minimum of 30 km/h
-      ret.cruiseState.speed = self.set_speed.update(ret.cruiseState.enabled, cp_cam.vl['ADAS_LKA']['ACC_SET_SPEED'],
-                                                    int(cp.vl['CLUSTER']['ACC_SPEED_KNOB'])) * CV.KPH_TO_MS
     ret.cruiseState.speedCluster = ret.cruiseState.speed
     # the standstill hold, after which openpilot waits for the driver (see CarControllerParams.STANDSTILL_RESUME_TIME)
     self.stopped_frames = self.stopped_frames + 1 if ret.standstill and not ret.gasPressed else 0

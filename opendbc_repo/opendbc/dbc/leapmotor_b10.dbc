@@ -131,7 +131,6 @@ BO_ 675 SEATBELT: 16 XXX
 BO_ 589 CLUSTER: 32 XXX
  SG_ CHECKSUM : 0|8@1+ (1,0) [0|255] "" XXX
  SG_ COUNTER : 8|4@1+ (1,0) [0|15] "" XXX
- SG_ ACC_SPEED_KNOB : 64|11@1+ (1,0) [0|2047] "" XXX
  SG_ DISPLAY_SPEED : 80|8@1+ (1,0) [0|255] "km/h" XXX
  SG_ ASSIST_ENGAGED_COPY : 131|1@1+ (1,0) [0|1] "" XXX
  SG_ LCC_ENGAGED : 132|1@1+ (1,0) [0|1] "" XXX
@@ -143,7 +142,6 @@ CM_ SG_ 388 WHEEL_SPEED_RL "CONFIRMED: positions from filmed figure-eights: fron
 CM_ SG_ 388 WHEEL_SPEED_RR "CONFIRMED: positions from filmed figure-eights: front/rear rises from 1.02 straight to 1.27 near lock, and the left wheels run faster when steering right. Scale matches GPS within 0.1 km/h at a filmed steady 30 km/h. within about 1% of GPS above 60 km/h up to 126 km/h. Width at least 14 bits; no wrap in about 11 hours of logs.";
 CM_ SG_ 563 YAW_RATE "INFERRED scale, sign CONFIRMED: positive = turning left (openpilot convention); raw rises when turning right, r +0.994 to +1.000 against the comma gyro (livePose.angularVelocityDevice.z, positive right) on 3 traces. R2 0.993-0.999 against livePose on 5 datasets. Fit gives 0.0196; 0.02 assumed.";
 CM_ SG_ 389 LONG_ACCEL "INFERRED: R2 0.70-0.95 against livePose on 5 datasets. Same encoding as the Leapmotor T03 DBC (10 bits, offset -16), which matches the earlier 9-bit signed reading over the logged range. No wrap down to -6.8 m/s^2.";
-CM_ SG_ 589 ACC_SPEED_KNOB "INFERRED, strong: rolling position of the ACC set-speed knob. Each detent moves it by +-100 (wraps at 2048), 20-30 ms before ADAS_LKA.ACC_SET_SPEED steps by +-1 km/h in the same direction (931 changes on all desktop logs); it also moves while ACC is not engaged (303 changes). Read the change as (new - old + 1024) % 2048 - 1024, divided by 100 = detents.";
 CM_ SG_ 589 DISPLAY_SPEED "CONFIRMED: equal to the filmed dashboard speed in 6 of 6 checks (50, 70, 100 km/h). Reads about 3.5 percent above the wheel speeds, as dashboards do.";
 CM_ SG_ 675 DRIVER_SEATBELT_UNLATCHED "CONFIRMED: 1 when the driver belt is unbuckled. Followed 4 of 4 buckle actions in a live capture (cluster warning 0x24D bit 146 0.5 s later), the filmed belt step of recording 1, and read 0 (buckled) at every seatbeltNotLatched refusal caused by the old signal. Constant over whole drives with the belt on.";
 CM_ BO_ 552 "Rear-left blind-spot radar (20 Hz, silent when stopped). Bytes 8-15 carry object data when something is detected.";
