@@ -29,7 +29,6 @@ class CarState(CarStateBase):
     # the EPS's own effort as it shows up in the driver-torque reading, which lags it (see EPS_TORQUE_LAG)
     self.eps_torque_lagged = FirstOrderFilter(0., CarControllerParams.EPS_TORQUE_LAG, DT_CTRL)
     self.powertrain_state: dict | None = None
-    self.stopped_frames = 0
     self.dashboard_limit = LimitTracker()
     self.stalk_cancel = False
 
@@ -117,10 +116,11 @@ class CarState(CarStateBase):
     ret.cruiseState.available = ret.cruiseState.enabled or int(cp_cam.vl['ADAS_LKA']['ACC_STATE']) in (2, 3)
     ret.cruiseState.speed = cp_cam.vl['ADAS_LKA']['ACC_SET_SPEED'] * CV.KPH_TO_MS
     ret.cruiseState.speedCluster = ret.cruiseState.speed
-    # the standstill hold, after which openpilot waits for the driver (see CarControllerParams.STANDSTILL_RESUME_TIME)
-    self.stopped_frames = self.stopped_frames + 1 if ret.standstill and not ret.gasPressed else 0
-    ret.cruiseState.standstill = (ret.cruiseState.enabled and
-                                  self.stopped_frames * DT_CTRL >= CarControllerParams.STANDSTILL_RESUME_TIME)
+    # TEST BUILD: the cruise standstill hold is never reported, so openpilot pulls away by itself after any stop, when its
+    # plan says so. The stock ACC holds the car after a stop and waits for the accelerator (except right after a stop of
+    # about 2 s, when it pulled away by itself), but stays engaged (ACC_STATE 3) during the hold, so openpilot's request
+    # still replaces the camera's. Whether the car follows a go request during the stock hold is what this build tests.
+    ret.cruiseState.standstill = False
     # the camera's forward collision warning, shown by openpilot too
     ret.stockFcw = bool(cp_cam.vl['ROAD_SIGNS']['FCW'])
     # the camera's posted speed limit, as the cluster shows it; offered to the speed limit controller as the dashboard
